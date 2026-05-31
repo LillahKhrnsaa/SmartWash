@@ -3,7 +3,7 @@
  */
 
 export interface Admin {
-  id: string;
+  id: string;  
   email: string;
   fullName: string;
   password: string;
