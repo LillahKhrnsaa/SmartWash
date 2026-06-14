@@ -962,12 +962,13 @@ export default function UserDashboardPage() {
                     <p className="text-sm text-amber-600 font-medium">
                       ⚠️ Proses sedang berjalan. Hentikan terlebih dahulu untuk memulai proses ini.
                     </p>
-                  ) : (
+                  ) : 
+                  (
                     <p className="text-sm text-muted-foreground">
-                      Proses akan dimulai dengan pemandian (~10 menit), kemudian otomatis
-                      dilanjutkan dengan pengeringan (~15 menit)
+                      
                     </p>
-                  )}
+                  )
+                  }
                 </>
               )}
             </CardContent>
@@ -1053,7 +1054,7 @@ export default function UserDashboardPage() {
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Hanya proses pengeringan (~15 menit), tanpa pemandian terlebih dahulu
+                      
                     </p>
                   )}
                 </>
