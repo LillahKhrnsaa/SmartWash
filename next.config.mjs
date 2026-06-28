@@ -9,11 +9,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Production optimizations
   compress: true,
   productionBrowserSourceMaps: false,
-  swcMinify: true,
-  output: 'standalone',
+
   experimental: {
     optimizePackageImports: [
       '@radix-ui/react-dialog',
