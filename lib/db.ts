@@ -6,6 +6,9 @@ const pool = new Pool({
   user: process.env.PGUSER || "postgres",
   password: process.env.PGPASSWORD || "123456",
   database: process.env.PGDATABASE || "smartwash_db",
+  ssl: process.env.PGHOST && process.env.PGHOST !== "localhost" && process.env.PGHOST !== "127.0.0.1"
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 export const query = async (text: string, params?: any[]) => {
