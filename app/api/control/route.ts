@@ -8,7 +8,7 @@ export async function GET() {
     const controlResult = await query(
       "SELECT id, command, tipe_bulu, fur_type FROM control ORDER BY id DESC LIMIT 1"
     );
-    const controlData = controlResult.rows[0] || { command: "idle", tipe_bulu: 0, fur_type: "short" };
+    const controlData = controlResult.rows[0] || { id: null, command: "idle", tipe_bulu: 0, fur_type: "short" };
 
     // 2. Ambil data timer untuk Mode 1 dan Mode 2
     const timerResult = await query(
@@ -45,6 +45,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
+        id: controlData.id,
         tipe_bulu: controlData.tipe_bulu,
         command: controlData.command,
       },
@@ -68,7 +69,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { command, tipe_bulu } = body;
+    const { command, tipe_bulu, id } = body;
 
     if (!command) {
       return NextResponse.json(
@@ -77,31 +78,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cari ID row kontrol terakhir
-    const checkResult = await query("SELECT id FROM control ORDER BY id DESC LIMIT 1");
-    
-    if (checkResult.rows.length > 0) {
-      // Update row terakhir
-      const lastId = checkResult.rows[0].id;
+    // Aksi khusus untuk mereset command stale 'scan_bulu' ke 'idle'
+    if (command === "reset_stale") {
+      await query(
+        "UPDATE control SET command = 'idle', updated_at = CURRENT_TIMESTAMP WHERE command = 'scan_bulu'"
+      );
+      console.log("[Control API] Reset stale scan_bulu commands to idle");
+      return NextResponse.json({
+        success: true,
+        message: "Status control stale berhasil di-reset",
+      });
+    }
+
+    if (id !== undefined && id !== null) {
+      // Update baris spesifik (digunakan oleh skrip Python AI)
       if (tipe_bulu !== undefined) {
+        const fur_str = tipe_bulu === 1 ? "long" : "short";
         await query(
-          "UPDATE control SET command = $1, tipe_bulu = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
-          [command, tipe_bulu, lastId]
+          "UPDATE control SET command = $1, tipe_bulu = $2, fur_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4",
+          [command, tipe_bulu, fur_str, id]
         );
+
+        // Ambil user_id untuk update tabel users
+        const controlRow = await query("SELECT user_id FROM control WHERE id = $1", [id]);
+        if (controlRow.rows.length > 0 && controlRow.rows[0].user_id) {
+          const uid = controlRow.rows[0].user_id;
+          await query(
+            "UPDATE users SET tipe_bulu = $1, fur_type = $2 WHERE id = $3",
+            [tipe_bulu, fur_str, uid]
+          );
+          console.log(`[Control API] Updated user (ID: ${uid}) & control (ID: ${id}) to:`, { command, tipe_bulu, fur_str });
+        } else {
+          console.log(`[Control API] Updated control (ID: ${id}) with no associated user to:`, { command, tipe_bulu });
+        }
       } else {
         await query(
           "UPDATE control SET command = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-          [command, lastId]
+          [command, id]
         );
+        console.log(`[Control API] Updated control (ID: ${id}) to:`, { command });
       }
-      console.log(`[Control API] Updated latest control row (ID: ${lastId}) to:`, { command, tipe_bulu });
     } else {
-      // Jika kosong, insert row baru
-      await query(
-        "INSERT INTO control (command, tipe_bulu, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)",
-        [command, tipe_bulu || 0]
-      );
-      console.log(`[Control API] Inserted new control row with command:`, { command, tipe_bulu });
+      // Cari ID row kontrol terakhir (jika ID tidak dispesifikasi)
+      const checkResult = await query("SELECT id FROM control ORDER BY id DESC LIMIT 1");
+      
+      if (checkResult.rows.length > 0) {
+        const lastId = checkResult.rows[0].id;
+        if (tipe_bulu !== undefined) {
+          const fur_str = tipe_bulu === 1 ? "long" : "short";
+          await query(
+            "UPDATE control SET command = $1, tipe_bulu = $2, fur_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4",
+            [command, tipe_bulu, fur_str, lastId]
+          );
+        } else {
+          await query(
+            "UPDATE control SET command = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+            [command, lastId]
+          );
+        }
+        console.log(`[Control API] Updated latest control row (ID: ${lastId}) to:`, { command, tipe_bulu });
+      } else {
+        // Jika kosong, insert row baru
+        const fur_str = tipe_bulu === 1 ? "long" : "short";
+        await query(
+          "INSERT INTO control (command, tipe_bulu, fur_type, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)",
+          [command, tipe_bulu || 0, fur_str]
+        );
+        console.log(`[Control API] Inserted new control row with command:`, { command, tipe_bulu });
+      }
     }
 
     return NextResponse.json({
